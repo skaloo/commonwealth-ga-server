@@ -11481,6 +11481,16 @@ void Database::Init() {
 		Logger::Log("db", "v170: Ticket_Volcano_P map object config\n");
 	}
 
+	if (version < 171) {
+		// v171: skal - modify custom spawn table to use bbm_hp and bbm_dmg for difficulty scaling
+		result = sqlite3_exec(db,
+			"ALTER TABLE mod_data_set_bot_spawn_tables RENAME COLUMN bot_balance_multiplier TO bbm_hp;"
+			"ALTER TABLE mod_data_set_bot_spawn_tables ADD COLUMN bbm_dmg REAL NULL DEFAULT 0.0;",
+			nullptr, nullptr, &err);
+		if (result != SQLITE_OK) { Logger::Log("db", "Failed v171 (split custom spawn bbm): %s\n", err); return; }
+		Logger::Log("db", "v171: split custom spawn bbm\n");
+	}
+
 	// VR heal pad: enforce the pad device unconditionally (idempotent) —
 	// branch-divergent DBs have version counters past the v101/v102 gates.
 	// 2064 = Medical Station pulse (1.0s refire, FX 432 visual pulse);
@@ -11492,7 +11502,7 @@ void Database::Init() {
 		nullptr, nullptr, &err);
 	if (result != SQLITE_OK) { Logger::Log("db", "Failed VR heal pad device enforce: %s\n", err); return; }
 
-	result = sqlite3_exec(db, "UPDATE version_info SET version = 170", nullptr, nullptr, &err);
+	result = sqlite3_exec(db, "UPDATE version_info SET version = 171", nullptr, nullptr, &err);
 	if (result != SQLITE_OK) {
 		Logger::Log("db", "Failed to update version_info: %s\n", err);
 		return;

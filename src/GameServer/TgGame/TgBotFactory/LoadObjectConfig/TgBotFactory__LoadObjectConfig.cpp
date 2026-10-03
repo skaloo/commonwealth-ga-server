@@ -44,7 +44,7 @@ int g_loadedDifficultyValueId = -1;
 // skal: no offense but I don't see the point of this overly complicated way to do this
 // this is static data, there's no point doing sql queries for this
 // it even lists DA/1260 that shouldn't even be considered since it's not a actualy a difficulty
-// even though as the comment says it never participates unless it's the primary and it never should be
+// even though, as the comment says, it never participates unless it's the primary and it never should be
 //  1260 DA
 //	1471 umax-sec
 //  1259 max-sec
@@ -283,13 +283,17 @@ void EnsureSpawnTablesLoaded() {
 		// 	load from mod_data_set_bot_spawn_tables (our custom overrides)
 		// 	if that didn't load anything, load from asm_data_set_bot_spawn_tables (the stock client-extracted data)
 
+		// skal - WARNING: to avoid duplicating code, the 2 queries below MUST result in the exact same fields
+
 		static const char* const QueryString1=
 			"SELECT u.spawn_group, u.enemy_bot_id, u.bot_count, "
-			"       u.spawn_chance, u.bot_balance_multiplier, COALESCE(b.reference_name, ''), "
+			"       u.spawn_chance, u.bbm_hp, u.bbm_dmg, COALESCE(b.reference_name, ''), "
 			"       u.spawn_group_min, u.spawn_group_max, u.spawn_group_respawn_sec "
 			"FROM ( "
 			"  SELECT bot_spawn_table_id, difficulty_value_id, spawn_group, "
-			"         enemy_bot_id, bot_count, spawn_chance, COALESCE (bot_balance_multiplier, 1.0) as bot_balance_multiplier, "
+			"         enemy_bot_id, bot_count, spawn_chance, "
+			"					COALESCE (bbm_hp, 1.0) as bbm_hp, "
+			"					COALESCE (bbm_dmg, 1.0) as bbm_dmg, "
 			"         spawn_group_min, spawn_group_max, spawn_group_respawn_sec "
 			"  FROM mod_data_set_bot_spawn_tables "
 			") AS u "
@@ -300,11 +304,13 @@ void EnsureSpawnTablesLoaded() {
 
 		static const char* const QueryString2=
 			"SELECT u.spawn_group, u.enemy_bot_id, u.bot_count, "
-			"       u.spawn_chance, u.bot_balance_multiplier, COALESCE(b.reference_name, ''), "
+			"       u.spawn_chance, u.bbm_hp, u.bbm_dmg, COALESCE(b.reference_name, ''), "
 			"       u.spawn_group_min, u.spawn_group_max, u.spawn_group_respawn_sec "
 			"FROM ( "
 			"  SELECT bot_spawn_table_id, difficulty_value_id, spawn_group, "
-			"         enemy_bot_id, bot_count, spawn_chance, COALESCE (bot_balance_multiplier, 1.0) as bot_balance_multiplier, "
+			"         enemy_bot_id, bot_count, spawn_chance, "
+			"					COALESCE (bot_balance_multiplier, 1.0) as bbm_hp, "
+			"					0.0 as bbm_dmg, "
 			"         spawn_group_min, spawn_group_max, spawn_group_respawn_sec "
 			"  FROM asm_data_set_bot_spawn_tables "
 			") AS u "
@@ -337,15 +343,14 @@ void EnsureSpawnTablesLoaded() {
 					const int botId   = sqlite3_column_int(stmt, 1);
 					const int count   = sqlite3_column_int(stmt, 2);
 					const float chance = static_cast<float>(sqlite3_column_double(stmt, 3));
-					const float bbm = static_cast<float>(sqlite3_column_double(stmt, 4));
-					const unsigned char* refNameRaw = sqlite3_column_text(stmt, 5);
+					const float bbm_hp = static_cast<float>(sqlite3_column_double(stmt, 4));
+					const float bbm_dmg = static_cast<float>(sqlite3_column_double(stmt, 5));
+					const unsigned char* refNameRaw = sqlite3_column_text(stmt, 6);
 					const std::string refName(refNameRaw ? reinterpret_cast<const char*>(refNameRaw) : "");
-					const int groupMin   = sqlite3_column_int(stmt, 6);
-					const int groupMax   = sqlite3_column_int(stmt, 7);
-					const int respawnSec = sqlite3_column_int(stmt, 8);
-					groupMap[group].push_back(SpawnTableEntry{
-						tableId, group, botId, count, chance, bbm, refName, groupMin, groupMax, respawnSec
-					});
+					const int groupMin   = sqlite3_column_int(stmt, 7);
+					const int groupMax   = sqlite3_column_int(stmt, 8);
+					const int respawnSec = sqlite3_column_int(stmt, 9);
+					groupMap[group].push_back(SpawnTableEntry (tableId,group,botId,count,chance,DifficultyScalar (bbm_hp,bbm_dmg),refName,groupMin,groupMax,respawnSec));
 					++NbEntry;
 				}
 				sqlite3_finalize(stmt);
@@ -538,7 +543,7 @@ std::vector<SpawnGroupPlan> TgBotFactory__LoadObjectConfig::RollSpawnPlan(int nS
 		gp.GroupNumber  = groupKV.first;
 		gp.EntryCount   = 0;
 		gp.RolledBotId  = 0;
-		gp.BBM = 0.0f;
+		gp.BBM.zero ();
 		gp.Detail.nMinCount       = 0;
 		gp.Detail.nMaxCount       = 0;
 		gp.Detail.nCurrentCount   = 0;
