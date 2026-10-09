@@ -3037,8 +3037,6 @@ void Database::Init() {
 	// Queue 22 under the 'umax' category with name = 'adept'. marshal 1471 (aka umax)
 	// the client has no label for a custom difficulty id.
 	// Pool copy is one-time (marker) so operator edits to pool 1 or 9 stick; queue is INSERT OR IGNORE.
-	#if 0
-	//disabled for now
 	{
 		bool pool_seeded = false;
 		{
@@ -3087,7 +3085,6 @@ void Database::Init() {
 			}
 		}
 	}
-	#endif
 
 	// NOTE: PlayerSessionStore::Init() is called separately from main.cpp -- not here.
 	Logger::Log("db", "[Database::Init] Schema at version >= 19, WAL mode enabled\n");
