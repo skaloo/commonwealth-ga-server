@@ -8,6 +8,7 @@
 #include <vector>
 #include <cstdint>
 #include <mutex>
+#include "src/Config/DifficultyScalar.hpp"
 #include "src/ControlServer/QuestStore/QuestStore.hpp"
 
 struct SessionInfo {
@@ -17,6 +18,7 @@ struct SessionInfo {
     int64_t user_id = 0;
     int64_t selected_character_id = 0;
     uint32_t selected_profile_id = 0;
+    DifficultyScalar difficulty_override;
 };
 
 struct CharacterInfo {

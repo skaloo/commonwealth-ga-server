@@ -118,20 +118,20 @@ std::forward_list<asio::ip::address_v4> getLocalIPs() {
 
 }
 
-std::string detectExternalIP() {
-	std::string Output;// = "127.0.0.1";	// default if anything goes wrong
+bool detectExternalIP(asio::io_context& io_context, std::string& output) {
+	output.clear();
 	const auto failed=[&](const std::string& msg) {
-		Logger::Log("skal", "%s\n", msg.c_str());	// skal move to logger tcp once debug is done
-		return Output;
+		Logger::Log("config", "%s\n", msg.c_str());
+		return false;
 	};
 	try {
-		static constexpr int MaxIPChars = 15;	//  xxx.xxx.xxx.xxx
-		asio::io_context io_context;
+		static constexpr unsigned MinIPChars = 7u;	//  x.x.x.x
+		static constexpr unsigned MaxIPChars = 15u;	//  xxx.xxx.xxx.xxx
 		asio::ip::tcp::resolver resolver(io_context);
-		auto endpoints = resolver.resolve("namaste.ovh", "80");
+		auto endpoints = resolver.resolve("namaste.ovh", "80");	// skal - this could go in some settings instead
 		asio::ip::tcp::socket socket(io_context);
 		asio::connect(socket, endpoints);
-		std::string query = "GET /ip.php HTTP/1.1\r\nHost: namaste.ovh\r\nConnection: close\r\n\r\n";
+		const std::string query = "GET /ip.php HTTP/1.1\r\nHost: namaste.ovh\r\nConnection: close\r\n\r\n";
 		asio::write(socket, asio::buffer(query));
 		char Char;
 		std::string Line; Line.reserve(512);
@@ -152,27 +152,24 @@ std::string detectExternalIP() {
 				try { if (ContentLength != asio::read(socket, asio::buffer(ReplyArray, ContentLength))) return failed("read error 3"); } catch(std::exception&) { return failed("read error 4"); }
 				ReplyArray[ContentLength] = 0;
 				const std::string IPStr(ReplyArray, ContentLength);
-				//Logger::Log("skal", "IPStr = '%s'\n", IPStr.c_str());	// skal remove once debug is done
-				const asio::ip::address_v4 address = asio::ip::make_address_v4(IPStr);
-				if (address.is_unspecified()) {
+				asio::error_code Error;
+				const asio::ip::address_v4 address = asio::ip::make_address_v4(IPStr, Error);
+				if (Error || address.is_unspecified()) {
 					return failed("error decoding HTTP reply");
 				} else {
-					Output = IPStr;
-					Logger::Log("skal", "public IP detected: %s\n", Output.c_str());
-					return Output;
+					output = IPStr;
+					Logger::Log("config", "public IP detected: %s\n", output.c_str());
+					return true;
 				}
 			}
 			static const std::string ContentLengthHdr = "Content-Length: ";
 			static constexpr int ContentLengthHdrSz = 16;
 			if (Line.compare (0, ContentLengthHdrSz, ContentLengthHdr) == 0) {
-				//Logger::Log("skal", "Content-Length line found: '%s'\n", Line.c_str());	// skal remove once debug is done
 				const std::string ContentLengthStr = Line.substr(ContentLengthHdrSz);
 				try { ContentLength = std::stoi(ContentLengthStr); }
 				catch(std::exception&) { return failed("invalid HTTP reply: could not decode content-length value"); }
-				// we only expect a small text blob containg our IP, so content-length shouldnt be over 'MaxIPChars' chars
-				if (ContentLength > MaxIPChars) return failed("unexpected reply content, length > 15");
-			} else {
-				//Logger::Log("skal", "header line: '%s'\n", Line.c_str());	// skal remove once debug is done
+				// we only expect a small text blob containg our IP, so content-length shouldnt be over 'MaxIPChars' chars (and above 'MinIPChars')
+				if ((ContentLength < MinIPChars)||(ContentLength > MaxIPChars)) return failed("unexpected reply content, length not 7<.<15");
 			}
 		}
 	}
@@ -210,7 +207,7 @@ std::map<int64_t, int64_t> TcpSession::pending_alliance_invites_;
 std::mutex TcpSession::pending_agency_mutex_;
 std::map<int64_t, int64_t> TcpSession::pending_agency_invites_;
 std::function<void()> TcpSession::on_need_home_map_;
-std::string TcpSession::s_host_Z = "127.0.0.1";
+std::string TcpSession::s_host_ = "127.0.0.1";
 std::forward_list<TcpSession::net_info_t> TcpSession::s_nat_info_list;
 uint16_t    TcpSession::s_chat_port_ = 9001;
 bool        TcpSession::s_allow_duplicate_account_logins_ = false;
@@ -436,8 +433,8 @@ void TcpSession::EnsureHomeMapWarm(const char* reason) {
     on_need_home_map_();
 }
 
-bool TcpSession::Init (const ControlServerConfig& cfg) {
-	if (!SetNetworkConfig(cfg.host, cfg.chat_port, cfg.nat_networks, cfg.nat_ip)) return false;
+bool TcpSession::Init (asio::io_context& io_context, const ControlServerConfig& cfg) {
+	if (!SetNetworkConfig(io_context, cfg.host, cfg.chat_port, cfg.nat_networks, cfg.nat_ip)) return false;
 	SetLoginPolicy(cfg.allow_duplicate_account_logins,
 															cfg.require_password_verification);
 	SetModerationConfig(cfg.ban_spoof.mode,
@@ -446,41 +443,34 @@ bool TcpSession::Init (const ControlServerConfig& cfg) {
 	return true;
 }
 
-bool TcpSession::SetNetworkConfig(const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str) {
-#if 1
+bool TcpSession::SetNetworkConfig(asio::io_context& io_context, const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str) {
 	// skal add support to external IP auto-detection
-	if(host.empty() || (host == "auto")) {
-		s_host_Z = detectExternalIP();
-		if (s_host_Z.empty()) return false;
+	if (host.empty() || (host == "auto")) {
+		if (!detectExternalIP(io_context, s_host_)) return false;
 	} else {
-		// must be an ip for the UE messages -> needs resolving
+		// otherwise 'host' _must_ be an IP for the UE messages -> possibly needs resolving
 		asio::error_code Error;
 		asio::ip::address_v4 host_adr = asio::ip::make_address_v4(host, Error);
 		if (Error || host_adr.is_unspecified()) {
-			Logger::Log("skal", "'host' is not an IP, trying to resolve\n");
-			asio::io_context io_context;
+			Logger::Log("config", "'host' is not an IP, trying to resolve it\n");
 			asio::ip::tcp::resolver resolver(io_context);
 			auto endpoints = resolver.resolve(asio::ip::tcp::v4(), host, "");
 			switch (endpoints.size()) {
 				case 0:
-					Logger::Log("skal", "Could not resolve host into an address: '%s'\n", host.c_str());
+					Logger::Log("config", "Could not resolve host into an address: '%s'\n", host.c_str());
 					return false;
 				case 1:
-					s_host_Z = endpoints.begin()->endpoint().address().to_string();
+					s_host_ = endpoints.begin()->endpoint().address().to_string();
 					break;
 				default:
-					Logger::Log("skal", "Could not resolve host into an address (multiple results found): '%s'\n", host.c_str());
+					Logger::Log("config", "Could not resolve host into a single address (multiple results found): '%s'\n", host.c_str());
 					return false;
 			}
 		} else {
-			s_host_Z = host;
+			s_host_ = host;
 		}
-		Logger::Log("skal", "Public address: %s\n", s_host_Z.c_str());
+		Logger::Log("config", "Public address: %s\n", s_host_.c_str());
 	}
-
-#else
-	s_host_Z = host;
-#endif
 	s_chat_port_ = chat_port;
 	// skal - NAT support
 	if (!local_nets_str.empty()) {
@@ -501,15 +491,15 @@ bool TcpSession::SetNetworkConfig(const std::string& host, uint16_t chat_port, c
 			asio::error_code Error;
 			default_nat_ip = asio::ip::make_address_v4(default_nat_ip_str, Error);
 			if (Error) {
-				Logger::Log("skal", "invalid default nat address: %s\n", default_nat_ip_str.c_str());	// skal move to logger tcp once debug is done
+				Logger::Log("config", "invalid default nat address: %s\n", default_nat_ip_str.c_str());
 			} else {
-				Logger::Log("skal", "default nat address: %s\n", default_nat_ip_str.c_str());	// skal move to logger tcp once debug is done
+				Logger::Log("config", "default nat address: %s\n", default_nat_ip_str.c_str());
 			}
 		} else if (countLocalIPs () == 1) {
 			default_nat_ip = local_ip_list.front();
-			Logger::Log("skal", "default nat address: %s\n", default_nat_ip.to_string().c_str());	// skal move to logger tcp once debug is done
+			Logger::Log("config", "default nat address: %s\n", default_nat_ip.to_string().c_str());
 		} else {
-			Logger::Log("skal", "no default nat address\n");	// skal move to logger tcp once debug is done
+			Logger::Log("config", "no default nat address\n");
 		}
 		// lambda to match a network to one of the local IPs or fallback to the default one
 		const auto getLocalIP = [&](const asio::ip::network_v4& net) -> const asio::ip::address_v4& {
@@ -538,19 +528,19 @@ bool TcpSession::SetNetworkConfig(const std::string& host, uint16_t chat_port, c
 			asio::error_code Error;
 			asio::ip::network_v4 net = asio::ip::make_network_v4(net_str, Error);
 			if (Error) {
-				Logger::Log("skal", "Invalid network: '%s'\n", net_str.c_str());	// skal move to logger tcp once debug is done
+				Logger::Log("config", "Invalid network: '%s'\n", net_str.c_str());
 			}
 			else {
-				Logger::Log("skal", "NAT network: %s\n", net_str.c_str());	// remove once debug is done
+				//Logger::Log("skal", "NAT network: %s\n", net_str.c_str());	// remove once debug is done
 				const asio::ip::address_v4& local_ip = getLocalIP(net);
 				if (local_ip.is_unspecified()) {
-					Logger::Log("skal", "local net %s doesn't match any local IP and no default NAT IP was given in the config\n", net_str.c_str());	// skal move to logger tcp once debug is done
+					Logger::Log("config", "local net %s doesn't match any local IP and no default NAT IP was given in the config\n", net_str.c_str());
 				} else {
-					if (&local_ip==&default_nat_ip) {
+					/*if (&local_ip==&default_nat_ip) {
 						Logger::Log("skal", "local net %s <-> local IP %s\n", net_str.c_str(), local_ip.to_string().c_str());	// remove once debug is done
 					} else {
 						Logger::Log("skal", "local net %s <-> default IP %s\n", net_str.c_str(), local_ip.to_string().c_str());	// remove once debug is done
-					}
+					}*/
 					s_nat_info_list.push_front({net.hosts(),local_ip});
 				}
 			}
@@ -1921,7 +1911,7 @@ void TcpSession::handle_packet(const uint8_t* data, size_t length) {
 
 			// skal - NAT support: fallback to public server address in any other situation (not local net match or no local nets at all)
 			if (host_.empty()) {
-				host_ = s_host_Z;
+				host_ = s_host_;
 				Logger::Log("skal", "client %s is NOT in one of our local networks, will server the public address: %s\n", remote_ip_str.c_str(), host_.c_str());
 			}
 
@@ -2785,6 +2775,17 @@ void TcpSession::send_match_join_response(uint32_t matchQueueId, uint32_t matchF
     player.user_id = user_id_;  // drives the queue's requires_pvp_verification gate
     player.solo_lock = solo_mode;
     player.joined_at = std::chrono::steady_clock::now();
+
+		{
+			auto session_info = PlayerSessionStore::GetByGuidPtr(session_guid_);
+			if (session_info) {
+				player.difficulty_override = session_info->difficulty_override;	//- ] consume and reset
+				session_info->difficulty_override.zero();												//- ]
+				Logger::Log ("skal","[TcpSession::send_match_join_response] - difficulty override = %.2f/%.2f\n",player.difficulty_override.HP,player.difficulty_override.Dmg);
+			} else {
+				Logger::Log ("skal","[TcpSession::send_match_join_response] - no session !?\n");
+			}
+		}
 
     MatchmakingService::AddPlayer(matchQueueId, player);
 

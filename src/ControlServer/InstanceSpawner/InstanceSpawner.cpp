@@ -241,7 +241,40 @@ pid_t InstanceSpawner::Spawn(const ControlServerConfig& cfg,
                               const std::string& game_mode,
                               uint16_t udp_port,
                               int64_t instance_id,
-                              uint32_t difficulty_value_id) {
+                              eDifficulty difficulty_type,
+                              uint32_t difficulty_value_id,
+                              DifficultyScalar difficulty_scalar) {
+
+    // skal: difficulty args lambda
+    const auto build_difficulty_args=[&]() -> std::string {
+        #if 0
+        //old code
+        const std::string difficulty_arg = (difficulty_value_id != 0)
+            ? ("-difficulty=" + std::to_string(difficulty_value_id))
+            : std::string();
+        #else
+
+        //- we want to make the overrides command-line friendly:
+        //- pass a string composed that way:
+        //-     HP*100 truncated as int
+        //-     '+'
+        //-     Dmg*100 truncated as int
+        switch (difficulty_type) {
+            case eDifficulty::Id:
+                Logger::Log("skal","[InstanceSpawner::Spawn] difficulty id: %d\n",difficulty_value_id);
+                return ("-difficulty=" + std::to_string(difficulty_value_id));
+            case eDifficulty::Scalar:
+                Logger::Log("skal","[InstanceSpawner::Spawn] difficulty override: %.2f/%.2f\n",difficulty_scalar.HP,difficulty_scalar.Dmg);
+                return ("-difficulty_override=" + std::to_string((uint32_t)(difficulty_scalar.HP*100.0f)) + "+" + std::to_string((uint32_t)(difficulty_scalar.Dmg*100.0f)));
+            case eDifficulty::Default:
+            default:
+                Logger::Log("skal","[InstanceSpawner::Spawn] default difficulty\n");
+                return std::string();
+        }
+
+        #endif
+    };
+
     // Round-robin counter for CPU pinning. Persists across calls so each
     // spawn lands on the next slot in the configured range. Lifetime is
     // the control-server process; reset on restart, which is fine.
@@ -323,9 +356,7 @@ pid_t InstanceSpawner::Spawn(const ControlServerConfig& cfg,
     };
     const std::string enabled_channels_arg       = "-enabledchannels="      + join_csv(cfg.enabled_channels);
     const std::string enabled_crash_channels_arg = "-enabledcrashchannels=" + join_csv(cfg.enabled_crash_channels);
-    const std::string difficulty_arg = (difficulty_value_id != 0)
-        ? ("-difficulty=" + std::to_string(difficulty_value_id))
-        : std::string();
+    const std::string difficulty_arg = build_difficulty_args();
 
     std::vector<std::string> args = {
         game_binary_path,
@@ -502,9 +533,7 @@ pid_t InstanceSpawner::Spawn(const ControlServerConfig& cfg,
         // map-name-based Config::GetDifficultyValueId() heuristic. Queue
         // rows in ga_queues seed this from their difficulty_value_id field
         // (0 = no preference; DLL keeps its existing default).
-        std::string difficulty_arg = (difficulty_value_id != 0)
-            ? ("-difficulty=" + std::to_string(difficulty_value_id))
-            : std::string();
+        std::string difficulty_arg = build_difficulty_args();
 
         // --wine-debug: use winedbg instead of wine, with "--command cont" to auto-resume
         std::string wine_bin = cfg.wine_debug ? cfg.wine_binary + "dbg" : cfg.wine_binary;

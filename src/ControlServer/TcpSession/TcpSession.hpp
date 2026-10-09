@@ -202,7 +202,7 @@ private:
 
     // Network config: external IP and chat port, set once from main.
     // skal - NAT support
-    static std::string s_host_Z;
+    static std::string s_host_;
     static uint16_t    s_chat_port_;
     struct net_info_t {
         asio::ip::address_v4_range  ip_range;
@@ -218,7 +218,7 @@ private:
     static int         s_ban_spoof_fallback_close_sec_;    // 0 = never
     static int         s_kick_fallback_close_sec_;         // 0 = never
 
-    static bool SetNetworkConfig(const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str);
+    static bool SetNetworkConfig(asio::io_context& io, const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str);
     static void SetLoginPolicy(bool allow_duplicate_account_logins,
                                bool require_password_verification = true);
     static void SetModerationConfig(const std::string& ban_spoof_mode,
@@ -226,7 +226,7 @@ private:
                                     int kick_fallback_close_sec);
 
 public:
-    static bool Init(const ControlServerConfig& cfg);
+    static bool Init(asio::io_context& io, const ControlServerConfig& cfg);
 
     static void SetHomeMapSpawner(std::function<void()> cb);
 
