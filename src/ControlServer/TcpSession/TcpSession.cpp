@@ -118,6 +118,8 @@ std::forward_list<asio::ip::address_v4> getLocalIPs() {
 
 }
 
+#if 0
+
 bool detectExternalIP(asio::io_context& io_context, std::string& output) {
 	output.clear();
 	const auto failed=[&](const std::string& msg) {
@@ -177,6 +179,7 @@ bool detectExternalIP(asio::io_context& io_context, std::string& output) {
 		return failed("error fetching public IP");
 	}
 }
+#endif
 
 }	// namespace
 
@@ -443,15 +446,23 @@ bool TcpSession::Init (asio::io_context& io_context, const ControlServerConfig& 
 	return true;
 }
 
-bool TcpSession::SetNetworkConfig(asio::io_context& io_context, const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str) {
+bool TcpSession::SetNetworkConfig(asio::io_context& /*io_context*/, const std::string& host, uint16_t chat_port, const std::string& local_nets_str, const std::string& default_nat_ip_str) {
 	// skal add support to external IP auto-detection
 	if (host.empty() || (host == "auto")) {
+		// skal disabled for now, leads to some random crashes, details in commit
+		#if 0
 		if (!detectExternalIP(io_context, s_host_)) return false;
+		#else
+		Logger::Log ("config","settings 'host' must not be empty or 'auto'\n");
+		return false;
+		#endif
 	} else {
 		// otherwise 'host' _must_ be an IP for the UE messages -> possibly needs resolving
 		asio::error_code Error;
 		asio::ip::address_v4 host_adr = asio::ip::make_address_v4(host, Error);
 		if (Error || host_adr.is_unspecified()) {
+			// skal disabled for now, leads to some random crashes, details in commit
+			#if 0
 			Logger::Log("config", "'host' is not an IP, trying to resolve it\n");
 			asio::ip::tcp::resolver resolver(io_context);
 			auto endpoints = resolver.resolve(asio::ip::tcp::v4(), host, "");
@@ -466,6 +477,10 @@ bool TcpSession::SetNetworkConfig(asio::io_context& io_context, const std::strin
 					Logger::Log("config", "Could not resolve host into a single address (multiple results found): '%s'\n", host.c_str());
 					return false;
 			}
+			#else
+			Logger::Log ("config","settings 'host' must not be empty or 'auto'\n");
+			return false;
+			#endif
 		} else {
 			s_host_ = host;
 		}
