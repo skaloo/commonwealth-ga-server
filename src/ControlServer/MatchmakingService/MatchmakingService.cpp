@@ -653,7 +653,7 @@ void MatchmakingService::AddPlayer(uint32_t queue_id, QueuedPlayer& player) {
     player.difficulty_override.zero();                      //- ] consume+reset
                                                             //- ] reset possibly not needed since QueuedPlayer is trensient, investigate
     AddParty(queue_id, party);
-    Logger::Log ("skal","[MatchmakingService::AddPlayer] - solo player - difficulty override = %.2f/%.2f\n",party.difficulty_override.HP,party.difficulty_override.Dmg);
+    //Logger::Log ("skal","[MatchmakingService::AddPlayer] - solo player - difficulty override = %.2f/%.2f\n",party.difficulty_override.HP,party.difficulty_override.Dmg);
 }
 
 // Shared post-mutation handling: instant-pop-when-full, delay re-arm, TryPop.

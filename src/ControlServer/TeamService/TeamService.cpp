@@ -100,7 +100,7 @@ std::vector<std::string> TeamService::SetDifficultyOverride(const std::string& s
     } else {
         // the player is teamed and leader of his group
         // set the overidden difficulty for the team and fill the return vector with all members
-        Logger::Log ("skal","[TeamService::SetDifficultyOverride] difficulty=%.2f/%.2f\n",difficulty_override.HP,difficulty_override.Dmg);
+        //Logger::Log ("skal","[TeamService::SetDifficultyOverride] difficulty=%.2f/%.2f\n",difficulty_override.HP,difficulty_override.Dmg);
         team->difficulty_override = difficulty_override;
         guids.reserve(team->members.size());
         for (const auto& m : team->members) {
@@ -109,17 +109,6 @@ std::vector<std::string> TeamService::SetDifficultyOverride(const std::string& s
     }
     return guids;
 }
-
-//        if (!TeamService::IsLeader(session_guid)) {
-//            ChatSession::SystemMessageToGuid(session_guid, "*** You must be in solo mode or a group leader to use -overridediff ***");
-//            Logger::Log("chat-command",
-//                "[ChatCmd] guid=%s command=-overridediff outcome=ignored details=not_solo_or_group_leader\n",
-//                session_guid.c_str());
-//            return;
-//        }
-//        Recipients = TeamService::GetTeamMemberGuids(session_guid);
-//        Team.override = args.difficulty_scalar;
-
 
 TeamRoster TeamService::BuildRosterLocked(const Team& team) {
     TeamRoster roster;

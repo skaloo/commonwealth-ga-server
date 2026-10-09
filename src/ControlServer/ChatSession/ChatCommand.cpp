@@ -385,7 +385,7 @@ ParseResult TryParseChatCommand(const std::string& message_text) {
         return out;
     }
 
-#if 1
+#if 0
     // skal add support for -cheat
     if (cmd_name == "-cheat") {
         // -cheat zeus
@@ -408,7 +408,7 @@ ParseResult TryParseChatCommand(const std::string& message_text) {
     }
 #endif
 
-#if 1
+#if 0
     // skal add support for -overridediff
     //  override the difficulty scalar for the next mission
     //  applies only for somone in solo or in a group

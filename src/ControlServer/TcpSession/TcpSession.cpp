@@ -36,7 +36,7 @@
 #endif
 
 // skal - helper function to collect local IP addresses
-// please note this is currently untested on apple and unsure on linux
+// please note this is currently untested on apple
 
 namespace {
 
@@ -1900,7 +1900,7 @@ void TcpSession::handle_packet(const uint8_t* data, size_t length) {
 					for (const net_info_t& net : s_nat_info_list) {
 						if (net.ip_range.find(remote_ip4) != net.ip_range.end()) {
 							host_ = net.srv_ip.to_string();
-							Logger::Log("skal", "client %s is in one of our local networks, will serve the NAT address: %s\n", remote_ip_str.c_str(), host_.c_str());	// skal - change to logger tcp when done debugging
+							Logger::Log("tcp", "client %s is in one of our local networks, will serve the NAT address: %s\n", remote_ip_str.c_str(), host_.c_str());
 							break;
 						}
 					}
@@ -1912,7 +1912,7 @@ void TcpSession::handle_packet(const uint8_t* data, size_t length) {
 			// skal - NAT support: fallback to public server address in any other situation (not local net match or no local nets at all)
 			if (host_.empty()) {
 				host_ = s_host_;
-				Logger::Log("skal", "client %s is NOT in one of our local networks, will server the public address: %s\n", remote_ip_str.c_str(), host_.c_str());
+				Logger::Log("tcp", "client %s is NOT in one of our local networks, will server the public address: %s\n", remote_ip_str.c_str(), host_.c_str());
 			}
 
 			if (IsLoginIpCoolingDown(remote_ip_str)) {
@@ -2781,9 +2781,9 @@ void TcpSession::send_match_join_response(uint32_t matchQueueId, uint32_t matchF
 			if (session_info) {
 				player.difficulty_override = session_info->difficulty_override;	//- ] consume and reset
 				session_info->difficulty_override.zero();												//- ]
-				Logger::Log ("skal","[TcpSession::send_match_join_response] - difficulty override = %.2f/%.2f\n",player.difficulty_override.HP,player.difficulty_override.Dmg);
+				//Logger::Log ("skal","[TcpSession::send_match_join_response] - difficulty override = %.2f/%.2f\n",player.difficulty_override.HP,player.difficulty_override.Dmg);
 			} else {
-				Logger::Log ("skal","[TcpSession::send_match_join_response] - no session !?\n");
+				//Logger::Log ("skal","[TcpSession::send_match_join_response] - no session !?\n");
 			}
 		}
 

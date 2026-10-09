@@ -41,9 +41,8 @@ int g_loadedDifficultyValueId = -1;
 
 #if 1
 
-// skal: no offense but I don't see the point of this overly complicated way to do this
-// this is static data, there's no point doing sql queries for this
-// it even lists DA/1260 that shouldn't even be considered since it's not a actualy a difficulty
+// skal - this is static data, there's no point doing sql queries for this
+// it even lists DA/1260 that shouldn't even be considered since it's not an actual difficulty
 // even though, as the comment says, it never participates unless it's the primary and it never should be
 //  1260 DA
 //	1471 umax-sec
@@ -370,11 +369,11 @@ void EnsureSpawnTablesLoaded() {
 		return Stats;
 	};
 
-Logger::Log("tgbotfactory", "before getdiffcasc\n");
+//Logger::Log("tgbotfactory", "before getdiffcasc\n");
 
 	const std::vector<int> cascade = GetDifficultyCascade(difficulty);
 
-Logger::Log("tgbotfactory", "after getdiffcasc\n");
+//Logger::Log("tgbotfactory", "after getdiffcasc\n");
 
 	const auto LoadCascade=[&](int Index,const char* const Tail) {
 		const int tier = cascade[Index];

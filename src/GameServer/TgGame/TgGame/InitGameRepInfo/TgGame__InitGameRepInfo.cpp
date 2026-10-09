@@ -229,7 +229,8 @@ void __fastcall TgGame__InitGameRepInfo::Call(ATgGame* Game, void* edx) {
 		//		-> time adjust
 		// this should probably go in some DB table along with the difficulty scalars
 		//
-		// as of now, 20 mins for mega and no change for gigamax (aka 15 mins)
+		// commented out but left here for reference, this is where any similar time adjustement should be done
+		//	(we decided 15 mins was just fine)
 		//
 		/*if (Config::GetDifficultyValueId() == GA_G::DIFFICULTY_VALUE_ID_CUSTOM_MEGA_MAX_SECURITY) {
 			timings.timeSecs = 20 * 60;

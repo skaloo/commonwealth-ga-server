@@ -435,8 +435,13 @@ int main(int argc, char* argv[]) {
     //InstanceRegistry::SetHost(cfg.host); //skal: unused
     //InstanceRegistry::SetHost(cfg.host); //skal: unused
 
-    // Set network config for TcpSession responses
+    // Create ASIO io_context and register signal handler reference
+    // skal - moved here cause it's required during TcpSession::Init() if there is asio stuff done there
+    //        such as dns resolution and the like - this was the source of my crashes
     asio::io_context io;
+    g_io = &io;
+
+    // Set network config for TcpSession responses
     if (!TcpSession::Init(io, cfg)) return 1;
 
     // Set IPC server stats flags
@@ -645,17 +650,17 @@ int main(int argc, char* argv[]) {
             if (result.difficulty_override) {
                 difficulty_scalar = result.difficulty_override;
                 difficulty_type = eDifficulty::Scalar;
-                Logger::Log("skal","[main] spawn instance, will use overriden difficulty: %.2f/%.2f\n",difficulty_scalar.HP,difficulty_scalar.Dmg);
+                Logger::Log("main","[main] spawn instance, will use overriden difficulty: %.2f/%.2f\n",difficulty_scalar.HP,difficulty_scalar.Dmg);
             } else if (qcfg) {
                 difficulty_id = qcfg->difficulty_value_id;
                 if (difficulty_id != 0) {
                     difficulty_type = eDifficulty::Id;
-                    Logger::Log("skal","[main] spawn instance, will use difficulty %d\n",difficulty_id);
+                    Logger::Log("main","[main] spawn instance, will use difficulty %d\n",difficulty_id);
                 } else {
-                    Logger::Log("skal","[main] spawn instance, will use default difficulty (from queue config)\n");
+                    Logger::Log("main","[main] spawn instance, will use default difficulty (from queue config)\n");
                 }
             } else {
-                Logger::Log("skal","[main] spawn instance, will use default difficulty\n");
+                Logger::Log("main","[main] spawn instance, will use default difficulty\n");
             }
 
             pid_t pid = InstanceSpawner::Spawn(
@@ -740,7 +745,7 @@ int main(int argc, char* argv[]) {
             queue_difficulty = qcfg->difficulty_value_id;
         }
         // skal: afaik this is never used for pve mission, therefore the difficulty is always stock one
-        Logger::Log("skal","[main] spawn instance, default difficulty (from being 'successor aka pvp map)\n");
+        //Logger::Log("skal","[main] spawn instance, default difficulty from being 'successor' map)\n");
         pid_t pid = InstanceSpawner::Spawn(
             cfg, picked->map_name, picked->game_mode, *port, instance_id, eDifficulty::Id, queue_difficulty);
         if (pid < 0) {
@@ -772,7 +777,7 @@ int main(int argc, char* argv[]) {
 
         int64_t instance_id = InstanceRegistry::InsertStarting(
             map_name, game_mode, *port, 0, /*is_home_map=*/false);
-        Logger::Log("skal","[main] spawn instance, will use default difficulty (from being open world map)\n");
+        Logger::Log("main","[main] spawn instance, will use default difficulty (from being open world map)\n");
         pid_t pid = InstanceSpawner::Spawn(cfg, map_name, game_mode, *port, instance_id, eDifficulty::Id, difficulty_value_id);
         if (pid < 0) {
             Logger::Log("travel", "[OpenWorldSpawner] Spawn failed for '%s'\n", map_name.c_str());
@@ -818,10 +823,6 @@ int main(int argc, char* argv[]) {
         Logger::Log("main", "Home map instance spawned on demand: instance_id=%lld pid=%d port=%d\n",
             (long long)instance_id, (int)pid, (int)*port);
     });
-
-    // Create ASIO io_context and register signal handler reference
-    //asio::io_context io;
-    g_io = &io;
 
     // Hand the io_context to MatchmakingService so it can schedule
     // pop-delay timers. Must happen BEFORE any TCP/chat listener starts

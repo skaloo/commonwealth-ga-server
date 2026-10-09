@@ -156,6 +156,4 @@ struct ControlServerConfig {
 
     // Load config from JSON file at path. Returns defaults if file is absent or invalid.
     static ControlServerConfig Load(const std::string& path);
-
-    bool checkNAT = false;
 };

@@ -42,7 +42,7 @@ MatchResult CoopMatchRule::BuildOwnMatch(const QueuedParty& team) const {
         && ((cfg_.difficulty_value_id==3000)
          || (cfg_.difficulty_value_id==4000))) {
         r.difficulty_override = team.difficulty_override;
-        Logger::Log ("skal","[CoopMatchRule::BuildOwnMatch] - difficulty override = %.2f/%.2f\n",r.difficulty_override.HP,r.difficulty_override.Dmg);
+        //Logger::Log ("skal","[CoopMatchRule::BuildOwnMatch] - difficulty override = %.2f/%.2f\n",r.difficulty_override.HP,r.difficulty_override.Dmg);
     }
     return r;
 }
