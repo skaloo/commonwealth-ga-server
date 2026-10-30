@@ -204,7 +204,7 @@ void Inventory::ApplyDeviceEquipEffects(ATgPawn* Pawn, int deviceId) {
 	if (db == nullptr) return;
 
 	static const char* kSql =
-		"SELECT DISTINCT e.prop_id, e.base_value, e.calc_method_value_id, e.class_res_id "
+		"SELECT DISTINCT e.prop_id, e.base_value, e.calc_method_value_id, e.class_res_id, eg.required_skill_id "
 		"FROM asm_data_set_device_effect_groups deg "
 		"JOIN asm_data_set_effect_groups eg ON eg.effect_group_id = deg.effect_group_id "
 		"JOIN asm_data_set_effects e ON e.effect_group_id = deg.effect_group_id "
@@ -223,6 +223,7 @@ void Inventory::ApplyDeviceEquipEffects(ATgPawn* Pawn, int deviceId) {
 		float baseValue  = (float)sqlite3_column_double(stmt, 1);
 		int   calcMethod = sqlite3_column_int   (stmt, 2);
 		int   classResId = sqlite3_column_int   (stmt, 3);
+		int   reqSkillId = sqlite3_column_int   (stmt, 4);
 
 		// class 157 TgEffectBuff → register in source pawn's buff registry.
 		// devInst=0 (wildcard) so it applies to every outgoing
@@ -233,7 +234,9 @@ void Inventory::ApplyDeviceEquipEffects(ATgPawn* Pawn, int deviceId) {
 			FBuffHeader header{};
 			header.nPropId          = propId;
 			header.nReqCategoryCode = 0;
-			header.nReqSkillId      = 0;
+			// required_skill_id scopes the buff to one device class (e.g. a melee
+			// weapon's +20% vs. mechanical applies to melee attacks only).
+			header.nReqSkillId      = reqSkillId;
 			header.nReqDeviceInstId = 0;
 			TgPawn__ApplyBuff::Call(Pawn, /*edx=*/nullptr, header, calcMethod, baseValue,
 			                        /*bRemove=*/0, /*ITEM=*/1);
@@ -820,7 +823,7 @@ static void RemoveDeviceEquipEffects_impl(ATgPawn* Pawn, int deviceId) {
 	if (db == nullptr) return;
 
 	static const char* kSql =
-		"SELECT DISTINCT e.prop_id, e.base_value, e.calc_method_value_id, e.class_res_id "
+		"SELECT DISTINCT e.prop_id, e.base_value, e.calc_method_value_id, e.class_res_id, eg.required_skill_id "
 		"FROM asm_data_set_device_effect_groups deg "
 		"JOIN asm_data_set_effect_groups eg ON eg.effect_group_id = deg.effect_group_id "
 		"JOIN asm_data_set_effects e ON e.effect_group_id = deg.effect_group_id "
@@ -839,6 +842,7 @@ static void RemoveDeviceEquipEffects_impl(ATgPawn* Pawn, int deviceId) {
 		float baseValue  = (float)sqlite3_column_double(stmt, 1);
 		int   calcMethod = sqlite3_column_int   (stmt, 2);
 		int   classResId = sqlite3_column_int   (stmt, 3);
+		int   reqSkillId = sqlite3_column_int   (stmt, 4);
 
 		// class 157 — registry reverse via ApplyBuff(bRemove=1). Header MUST
 		// match the Apply side exactly so the entry-lookup hits the same slot.
@@ -846,7 +850,9 @@ static void RemoveDeviceEquipEffects_impl(ATgPawn* Pawn, int deviceId) {
 			FBuffHeader header{};
 			header.nPropId          = propId;
 			header.nReqCategoryCode = 0;
-			header.nReqSkillId      = 0;
+			// required_skill_id scopes the buff to one device class (e.g. a melee
+			// weapon's +20% vs. mechanical applies to melee attacks only).
+			header.nReqSkillId      = reqSkillId;
 			header.nReqDeviceInstId = 0;
 			TgPawn__ApplyBuff::Call(Pawn, /*edx=*/nullptr, header, calcMethod, baseValue,
 			                        /*bRemove=*/1, /*ITEM=*/1);
